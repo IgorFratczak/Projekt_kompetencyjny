@@ -1,0 +1,28 @@
+.pix{
+    font-family: Arial;
+    text-align: center;
+    font-size: 55px;
+    color: white;
+    background-color:#1f567c;
+    text-shadow: rgb(0, 0, 0) 2px 2px 2px;
+}
+
+.headerPix{
+    font-family: Arial;
+    text-align: center;
+    font-size: 29px;
+    color: white;
+    background-color:#1f567cfa;
+    text-shadow: rgb(0, 0, 0) 2px 2px 2px;
+}
+
+
+.clock{
+    font-family: Arial;
+    text-align: center;
+    font-size: 60px;
+    color: white;
+    background-color:#1f567c;
+    text-shadow: rgb(0, 0, 0) 2px 2px 2px;
+}
+
