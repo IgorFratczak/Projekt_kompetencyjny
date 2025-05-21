@@ -16,23 +16,24 @@ GPIO.setwarnings(False)
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
+#nazwy Gpio są złe np pin 26 to GPIO 26
 pins = {
-    26 : {'name' : 'GPIO 5', 'state' : GPIO.LOW},
-    19 : {'name' : 'GPIO 6', 'state' : GPIO.LOW},
-    8 : {'name' : 'GPIO 13', 'state' : GPIO.LOW},
-    20 : {'name' : 'GPIO 16', 'state' : GPIO.LOW},
-    1 : {'name' : 'GPIO 19', 'state' : GPIO.LOW},
-    21 : {'name' : 'GPIO 20', 'state' : GPIO.LOW},
-    17 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},
-    5 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},
-    13 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH},
-    9 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH},
-    0 : {'name' : 'GPIO 19', 'state' : GPIO.HIGH},
-    10 : {'name' : 'GPIO 20', 'state' : GPIO.HIGH},
-    30 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},
-    3 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},
-    23 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH},
-    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH}
+    26 : {'name' : 'GPIO 5', 'state' : GPIO.LOW}, #uzywany
+    19 : {'name' : 'GPIO 6', 'state' : GPIO.LOW},#uzywany
+    8 : {'name' : 'GPIO 13', 'state' : GPIO.LOW},#uzywany
+    20 : {'name' : 'GPIO 16', 'state' : GPIO.LOW},#uzywany
+    1 : {'name' : 'GPIO 19', 'state' : GPIO.LOW},#uzywany
+    21 : {'name' : 'GPIO 20', 'state' : GPIO.LOW},#uzywany
+    17 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},#uzywany
+    5 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},#uzywany
+    13 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH}, #uzywany
+    9 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH},#uzywany
+    0 : {'name' : 'GPIO 19', 'state' : GPIO.HIGH},#uzywany
+    10 : {'name' : 'GPIO 20', 'state' : GPIO.HIGH},#uzywany
+    30 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},#nie uzywany
+    3 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},#uzywany
+    23 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH}, #nie używany
+    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH} #uzywant
 }
 
 for pin in pins:
