@@ -3,9 +3,9 @@ import time
 
 # Numery pinów GPIO z nazwami i domyślnym stanem
 buttons = {
-    7: {'name': 'GPIO 4', 'state': GPIO.LOW},
-    18: {'name': 'GPIO 12', 'state': GPIO.LOW},
-    37: {'name': 'GPIO 23', 'state': GPIO.LOW}
+    8: {'name': 'GPIO 14', 'state': GPIO.LOW},
+    10: {'name': 'GPIO 15', 'state': GPIO.LOW},
+    12: {'name': 'GPIO 18', 'state': GPIO.LOW}
 }
 
 # Ustawienie trybu numeracji pinów
