@@ -23,7 +23,7 @@ from multiprocessing import Value
 app = Flask(__name__)
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-TimeToMaxDown = Value('d', 30.0)
+TimeToMaxDown = Value('d', 15.5)
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
