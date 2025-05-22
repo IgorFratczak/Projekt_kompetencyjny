@@ -12,7 +12,7 @@ import multiprocessing
 app = Flask(__name__)
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-
+TimeToMaxDown = 30
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
@@ -33,13 +33,70 @@ pins = {
     30 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},#nie uzywany
     3 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},#uzywany
     23 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH}, #nie używany
-    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH} #uzywant
+    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH}, #uzywant
 }
+buttons={
+    14: {'name': 'GPIO 14', 'state': GPIO.LOW},  # przycisk 1
+    15: {'name': 'GPIO 15', 'state': GPIO.LOW},  # przycisk 2
+    18: {'name': 'GPIO 18', 'state': GPIO.LOW}  # Przycisk 3
+}
+
+
+
+# Konfiguracja pinów jako wejścia z podciąganiem do VCC (pull-up)
+for pin in buttons:
+    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 for pin in pins:
    GPIO.setup(pin, GPIO.OUT)
    GPIO.output(pin, GPIO.HIGH)
 
+@app.route("/calibration")
+def calibration():
+    def calibration_logic():
+        # Krok 1: Schodzimy w dół, dopóki wszystkie przyciski nie są wciśnięte
+        print("Kalibracja: schodzę w dół...")
+        ch1_down()
+        ch2_down()
+        ch3_down()
+
+        while not all_buttons_pressed():
+            time.sleep(0.1)
+
+        # Zatrzymujemy wszystkie kanały
+        mode_1()
+        print("Wszystkie przyciski wciśnięte. Teraz jadę w górę przez 30s")
+
+        # Krok 2: W górę przez 30 sekund
+        ch1_up()
+        ch2_up()
+        ch3_up()
+        time.sleep(30)
+        mode_1()
+
+        # Krok 3: W dół i mierzymy czas aż znowu wciśnięte zostaną wszystkie przyciski
+        print("Rozpoczynam zjazd w dół i pomiar czasu")
+        ch1_down()
+        ch2_down()
+        ch3_down()
+
+        start_time = time.time()
+        while not all_buttons_pressed():
+            time.sleep(0.1)
+
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"Czas powrotu na dół: {duration:.2f} sekundy")
+
+        # Zatrzymanie aktuatorów
+        mode_1()
+
+    # Uruchamiamy jako proces równoległy by nie blokować serwera
+    global backProc
+    backProc = multiprocessing.Process(target=calibration_logic, daemon=True)
+    backProc.start()
+
+    return render_template('index.html'), 200
 
 @app.route('/')
 def hello_world():
@@ -313,6 +370,18 @@ def channel3Thread():
         time.sleep(2)
     pass
 
+
+def button1():
+    return GPIO.input(14) == GPIO.LOW  # Przycisk naciśnięty gdy LOW
+
+def button2():
+    return GPIO.input(15) == GPIO.LOW
+
+def button3():
+    return GPIO.input(18) == GPIO.LOW
+
+def all_buttons_pressed():
+    return button1() and button2() and button3()
 
 def getNetworkIp():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
