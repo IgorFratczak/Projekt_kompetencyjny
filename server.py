@@ -374,13 +374,13 @@ def channel3Thread():
 
 
 def button1():
-    return GPIO.input(14) == GPIO.LOW  # Przycisk naciśnięty gdy LOW
+    return GPIO.input(14) == GPIO.HIGH  # Przycisk naciśnięty gdy LOW
 
 def button2():
-    return GPIO.input(15) == GPIO.LOW
+    return GPIO.input(15) == GPIO.HIGH
 
 def button3():
-    return GPIO.input(18) == GPIO.LOW
+    return GPIO.input(18) == GPIO.HIGH
 
 def all_buttons_pressed():
     return button1() and button2() and button3()
