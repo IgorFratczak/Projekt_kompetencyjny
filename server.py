@@ -12,7 +12,8 @@ import multiprocessing
 app = Flask(__name__)
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-TimeToMaxDown = 30
+global TimeToMaxDown
+TimeToMaxDown =30
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
@@ -54,6 +55,7 @@ for pin in pins:
 @app.route("/calibration")
 def calibration():
     def calibration_logic():
+        global TimeToMaxDown
         # Krok 1: Schodzimy w dół, dopóki wszystkie przyciski nie są wciśnięte
         print("Kalibracja: schodzę w dół...")
         ch1_down()
@@ -87,7 +89,7 @@ def calibration():
         end_time = time.time()
         duration = end_time - start_time
         print(f"Czas powrotu na dół: {duration:.2f} sekundy")
-
+        TimeToMaxDown=duration
         # Zatrzymanie aktuatorów
         mode_1()
 
