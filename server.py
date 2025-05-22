@@ -457,12 +457,12 @@ def control_device():
             elif action == 'stop':
                 stop_device(device)
             elif action == 'percent':
-                if percent is None or not (0 < percent < 100):
+                if percent is None or not (0 < percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
                 move_by_percent = percent - current
                 direction = 'up' if move_by_percent > 0 else 'down'
-                duration = abs(move_by_percent) / 100 * TimeToMaxDown
+                duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
 
                 stop_device(device)
                 move_device(device, direction)

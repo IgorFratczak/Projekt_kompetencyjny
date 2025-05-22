@@ -15,7 +15,7 @@ def send_command(device, action,percent = None):
             "action": action
         }
         if percent is not None:
-            if not (0 < percent < 100):
+            if not (0 < percent <= 100):
                 print("Wrong percent: must be between 0 and 100")
                 return
             payload['percent'] = percent
