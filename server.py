@@ -100,6 +100,13 @@ def calibration():
 
     return render_template('index.html'), 200
 
+
+@app.route('/TimeToMaxDown')
+def show_time_to_max_down():
+    global TimeToMaxDown
+    print(f"Maksymalny czas:{TimeToMaxDown}")
+    return render_template('index.html'), 200
+
 @app.route('/')
 def hello_world():
   #  print("Started a background process with PID " + str(backProc.pid) + " is running: " + str(backProc.is_alive()))
