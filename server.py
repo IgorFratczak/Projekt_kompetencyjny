@@ -1,11 +1,22 @@
-from flask import Flask, Markup, render_template, request
-from urllib.request import urlopen
-import simplejson as json
-import sys
-import RPi.GPIO as GPIO
+from flask import Flask, render_template, request
+from flask import jsonify
+
+try:
+    import RPi.GPIO as GPIO
+except (ImportError, RuntimeError):
+    # GPIO na komputerze bez Raspberry Pi
+    class MockGPIO:
+        BCM = None
+        OUT = None
+        LOW = 0
+        HIGH = 1
+        def setmode(*args, **kwargs): pass
+        def setup(*args, **kwargs): pass
+        def output(*args, **kwargs): pass
+        def setwarnings(*args, **kwargs): pass
+    GPIO = MockGPIO()
 import time
 import socket
-import _thread as thread
 import multiprocessing
 from multiprocessing import Value
 
@@ -396,6 +407,88 @@ def getNetworkIp():
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     s.connect(('<broadcast>', 0))
     return s.getsockname()[0]
+
+def stop_device(device):
+    if device == 'acc1':
+        ch1_stop()
+    elif device == 'acc2':
+        ch2_stop()
+    elif device == 'acc3':
+        ch3_stop()
+
+def move_device(device, direction):
+    if device == 'acc1':
+        ch1_up() if direction == 'up' else ch1_down()
+    elif device == 'acc2':
+        ch2_up() if direction == 'up' else ch2_down()
+    elif device == 'acc3':
+        ch3_up() if direction == 'up' else ch3_down()
+
+device_positions = {
+    'acc1': 0,
+    'acc2': 0,
+    'acc3': 0
+}
+
+TimeToMaxDown = 5.0
+
+@app.route('/api/control', methods=['POST'])
+def control_device():
+    data = request.get_json()
+
+    if not data or 'device' not in data or 'action' not in data:
+        return jsonify({'status': 'error', 'message': 'Invalid JSON data'}), 400
+
+    device = data['device']
+    action = data['action']
+    percent = data.get('percent')
+
+    try:
+        if device not in device_positions and device not in ['vib', 'all']:
+            return jsonify({'status': 'error', 'message': f'Unknown device: {device}'}), 400
+
+        if device in device_positions:
+            current = device_positions[device]
+
+            if action == 'up':
+                stop_device(device)
+                move_device(device, 'up')
+            elif action == 'down':
+                stop_device(device)
+                move_device(device, 'down')
+            elif action == 'stop':
+                stop_device(device)
+            elif action == 'percent':
+                if percent is None or not (0 < percent < 100):
+                    return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
+
+                move_by_percent = percent - current
+                direction = 'up' if move_by_percent > 0 else 'down'
+                duration = abs(move_by_percent) / 100 * TimeToMaxDown
+
+                stop_device(device)
+                move_device(device, direction)
+                time.sleep(duration)
+                stop_device(device)
+                device_positions[device] = percent
+                return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
+
+        elif device == 'vib':
+            if action == 'start':
+                vibRun()
+            elif action == 'stop':
+                vibTerm()
+
+        elif device == 'all':
+            if action == 'up':
+                multiprocessing.Process(target=allUp, daemon=True).start()
+            elif action == 'down':
+                multiprocessing.Process(target=allDown, daemon=True).start()
+
+        return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)
