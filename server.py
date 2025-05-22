@@ -425,13 +425,21 @@ def move_device(device, direction):
         ch3_up() if direction == 'up' else ch3_down()
 
 def move_all_by_percent(percent):
-    duration = abs(percent - device_positions['acc1']) / 100 * TimeToMaxDown.value
-    direction = 'up' if percent > device_positions['acc1'] else 'down'
-    for device in ['acc1', 'acc2', 'acc3']:
+    durations = {}
+    directions = {}
+
+    for device in device_positions:
+        current = device_positions[device]
+        durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
+        directions[device] = 'up' if percent > current else 'down'
+
+    for device in device_positions:
         stop_device(device)
-        move_device(device, direction)
-    time.sleep(duration)
-    for device in ['acc1', 'acc2', 'acc3']:
+        move_device(device, directions[device])
+
+    time.sleep(max(durations.values()))
+
+    for device in device_positions:
         stop_device(device)
         device_positions[device] = percent
 
@@ -468,7 +476,7 @@ def control_device():
             elif action == 'stop':
                 stop_device(device)
             elif action == 'percent':
-                if percent is None or not (0 < percent <= 100):
+                if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
                 move_by_percent = percent - current
@@ -494,7 +502,7 @@ def control_device():
             elif action == 'down':
                 multiprocessing.Process(target=allDown, daemon=True).start()
             elif action == 'percent':
-                if percent is None or not (0 < percent <= 100):
+                if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
                 multiprocessing.Process(target=move_all_by_percent, args=(percent,), daemon=True).start()
