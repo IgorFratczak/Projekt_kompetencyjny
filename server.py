@@ -330,6 +330,30 @@ def getNetworkIp():
     s.connect(('<broadcast>', 0))
     return s.getsockname()[0]
 
+def stop_device(device):
+    if device == 'acc1':
+        ch1_stop()
+    elif device == 'acc2':
+        ch2_stop()
+    elif device == 'acc3':
+        ch3_stop()
+
+def move_device(device, direction):
+    if device == 'acc1':
+        ch1_up() if direction == 'up' else ch1_down()
+    elif device == 'acc2':
+        ch2_up() if direction == 'up' else ch2_down()
+    elif device == 'acc3':
+        ch3_up() if direction == 'up' else ch3_down()
+
+device_positions = {
+    'acc1': 0,
+    'acc2': 0,
+    'acc3': 0
+}
+
+TimeToMaxDown = 5.0
+
 @app.route('/api/control', methods=['POST'])
 def control_device():
     data = request.get_json()
@@ -339,37 +363,37 @@ def control_device():
 
     device = data['device']
     action = data['action']
+    percent = data.get('percent')
 
     try:
-        if device == 'acc1':
-            if action == 'up':
-                ch1_stop()
-                ch1_up()
-            elif action == 'down':
-                ch1_stop()
-                ch1_down()
-            elif action == 'stop':
-                ch1_stop()
+        if device not in device_positions and device not in ['vib', 'all']:
+            return jsonify({'status': 'error', 'message': f'Unknown device: {device}'}), 400
 
-        elif device == 'acc2':
-            if action == 'up':
-                ch2_stop()
-                ch2_up()
-            elif action == 'down':
-                ch2_stop()
-                ch2_down()
-            elif action == 'stop':
-                ch2_stop()
+        if device in device_positions:
+            current = device_positions[device]
 
-        elif device == 'acc3':
             if action == 'up':
-                ch3_stop()
-                ch3_up()
+                stop_device(device)
+                move_device(device, 'up')
             elif action == 'down':
-                ch3_stop()
-                ch3_down()
+                stop_device(device)
+                move_device(device, 'down')
             elif action == 'stop':
-                ch3_stop()
+                stop_device(device)
+            elif action == 'percent':
+                if percent is None or not (0 < percent < 100):
+                    return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
+
+                move_by_percent = percent - current
+                direction = 'up' if move_by_percent > 0 else 'down'
+                duration = abs(move_by_percent) / 100 * TimeToMaxDown
+
+                stop_device(device)
+                move_device(device, direction)
+                time.sleep(duration)
+                stop_device(device)
+                device_positions[device] = percent
+                return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
 
         elif device == 'vib':
             if action == 'start':
@@ -383,13 +407,10 @@ def control_device():
             elif action == 'down':
                 multiprocessing.Process(target=allDown, daemon=True).start()
 
-        else:
-            return jsonify({'status': 'error', 'message': f'Unknown device: {device}'}), 400
+        return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-    return jsonify({'status': 'ok', 'message': f'{device} {action} executed'})
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)
