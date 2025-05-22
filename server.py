@@ -5,16 +5,19 @@ from multiprocessing import Manager
 try:
     import RPi.GPIO as GPIO
 except (ImportError, RuntimeError):
-    # GPIO na komputerze bez Raspberry Pi
     class MockGPIO:
-        BCM = None
-        OUT = None
+        BCM = 'BCM'
+        OUT = 'OUT'
+        IN = 'IN'
         LOW = 0
         HIGH = 1
-        def setmode(*args, **kwargs): pass
-        def setup(*args, **kwargs): pass
-        def output(*args, **kwargs): pass
-        def setwarnings(*args, **kwargs): pass
+        PUD_UP = 'PUD_UP'
+
+        def setmode(self, *args, **kwargs): pass
+        def setup(self, *args, **kwargs): pass
+        def output(self, *args, **kwargs): pass
+        def input(self, *args, **kwargs): return self.HIGH
+        def setwarnings(self, *args, **kwargs): pass
     GPIO = MockGPIO()
 import time
 import socket
