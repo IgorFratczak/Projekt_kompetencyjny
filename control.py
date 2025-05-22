@@ -8,12 +8,17 @@ UNITY_IP = '192.168.51.8'
 UNITY_PORT = 5000
 UNITY_URL = f'http://{UNITY_IP}:{UNITY_PORT}/'
 
-def send_command(device, action):
+def send_command(device, action,percent = None):
     try:
         payload = {
             "device": device,
             "action": action
         }
+        if percent is not None:
+            if not (0 <= percent <= 100):
+                print("Wrong percent: must be between 0 and 100")
+                return
+            payload['percent'] = percent
 
         response = requests.post(API_URL, json=payload)
         if response.status_code == 200:
@@ -35,9 +40,9 @@ def send_scenario_to_unity(scenario_name):
 
 def print_commands():
     print("\nCommands:")
-    print("  acc1 up / down / stop")
-    print("  acc2 up / down / stop")
-    print("  acc3 up / down / stop")
+    print("  acc1 up / down / stop / percent")
+    print("  acc2 up / down / stop / percent")
+    print("  acc3 up / down / stop / percent")
     print("  vib start / stop")
     print("  all up / down")
     print("  halt")
@@ -55,7 +60,8 @@ def scenario_easy():
     send_command("acc1", "down")
 
 def scenario_medium():
-    print("Running scenario: vib test")
+    print("Running scenario: medium")
+    send_scenario_to_unity("scenario medium")
     send_command("vib", "start")
     time.sleep(0.5)
     send_command("vib", "stop")
@@ -65,7 +71,8 @@ def scenario_medium():
     send_command("vib", "stop")
 
 def scenario_hard():
-    print("Running scenario: vib test")
+    print("Running scenario: hard")
+    send_scenario_to_unity("scenario hard")
     send_command("vib", "start")
     time.sleep(10)
     send_command("vib", "stop")
@@ -98,8 +105,22 @@ def main():
             scenario_medium()
             continue
         try:
-            device, action = cmd.split()
-            send_command(device, action)
+            parts = cmd.split()
+            if len(parts) == 2:
+                device, action = parts
+                send_command(device, action)
+            elif len(parts) == 3:
+                device, action, value = parts
+                if action == "percent":
+                    try:
+                        percent = int(value)
+                        send_command(device, action, percent)
+                    except ValueError:
+                        print("Invalid percent value")
+                else:
+                    print("Unknown command")
+            else:
+                print("Unknown command")
         except ValueError:
             print("Unknown command")
 
