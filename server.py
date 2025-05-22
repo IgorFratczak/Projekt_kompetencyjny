@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request
 from flask import jsonify
+from multiprocessing import Manager
 
 try:
     import RPi.GPIO as GPIO
@@ -443,11 +444,12 @@ def move_all_by_percent(percent):
         stop_device(device)
         device_positions[device] = percent
 
-device_positions = {
+manager = Manager()
+device_positions = manager.dict({
     'acc1': 0,
     'acc2': 0,
     'acc3': 0
-}
+})
 
 @app.route('/api/control', methods=['POST'])
 def control_device():
