@@ -44,7 +44,7 @@ def print_commands():
     print("  acc2 up / down / stop / percent")
     print("  acc3 up / down / stop / percent")
     print("  vib start / stop")
-    print("  all up / down")
+    print("  all up / down / percent")
     print("  halt")
     print("  scenario easy")
     print("  scenario medium")

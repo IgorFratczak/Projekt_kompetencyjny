@@ -424,6 +424,17 @@ def move_device(device, direction):
     elif device == 'acc3':
         ch3_up() if direction == 'up' else ch3_down()
 
+def move_all_by_percent(percent):
+    duration = abs(percent - device_positions['acc1']) / 100 * TimeToMaxDown.value
+    direction = 'up' if percent > device_positions['acc1'] else 'down'
+    for device in ['acc1', 'acc2', 'acc3']:
+        stop_device(device)
+        move_device(device, direction)
+    time.sleep(duration)
+    for device in ['acc1', 'acc2', 'acc3']:
+        stop_device(device)
+        device_positions[device] = percent
+
 device_positions = {
     'acc1': 0,
     'acc2': 0,
@@ -482,6 +493,12 @@ def control_device():
                 multiprocessing.Process(target=allUp, daemon=True).start()
             elif action == 'down':
                 multiprocessing.Process(target=allDown, daemon=True).start()
+            elif action == 'percent':
+                if percent is None or not (0 < percent <= 100):
+                    return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
+
+                multiprocessing.Process(target=move_all_by_percent, args=(percent,), daemon=True).start()
+                return jsonify({'status': 'ok', 'message': f'all moved to {percent}%'}), 200
 
         return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
 
