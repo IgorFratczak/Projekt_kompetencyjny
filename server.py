@@ -430,8 +430,6 @@ device_positions = {
     'acc3': 0
 }
 
-TimeToMaxDown = 5.0
-
 @app.route('/api/control', methods=['POST'])
 def control_device():
     data = request.get_json()
