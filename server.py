@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request
 from flask import jsonify
-from multiprocessing import Manager
+import threading
 
 try:
     import RPi.GPIO as GPIO
@@ -432,10 +432,16 @@ def move_all_by_percent(percent):
     durations = {}
     directions = {}
 
+    print("Positions before move:")
     for device in device_positions:
-        current = device_positions[device]
-        durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
-        directions[device] = 'up' if percent > current else 'down'
+        with device_positions[device].get_lock():
+            print(f"{device}: {device_positions[device].value}%")
+
+    for device in device_positions:
+        with device_positions[device].get_lock():
+            current = device_positions[device].value
+            durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
+            directions[device] = 'up' if percent > current else 'down'
 
     for device in device_positions:
         stop_device(device)
@@ -445,14 +451,19 @@ def move_all_by_percent(percent):
 
     for device in device_positions:
         stop_device(device)
-        device_positions[device] = percent
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
 
-manager = Manager()
-device_positions = manager.dict({
-    'acc1': 0,
-    'acc2': 0,
-    'acc3': 0
-})
+    print("\nPositions after move:")
+    for device in device_positions:
+        with device_positions[device].get_lock():
+            print(f"{device}: {device_positions[device].value}%")
+
+device_positions = {
+    'acc1': Value('d', 0.0),
+    'acc2': Value('d', 0.0),
+    'acc3': Value('d', 0.0)
+}
 
 @app.route('/api/control', methods=['POST'])
 def control_device():
@@ -470,8 +481,6 @@ def control_device():
             return jsonify({'status': 'error', 'message': f'Unknown device: {device}'}), 400
 
         if device in device_positions:
-            current = device_positions[device]
-
             if action == 'up':
                 stop_device(device)
                 move_device(device, 'up')
@@ -484,6 +493,9 @@ def control_device():
                 if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
+                with device_positions[device].get_lock():
+                    current = device_positions[device].value
+
                 move_by_percent = percent - current
                 direction = 'up' if move_by_percent > 0 else 'down'
                 duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
@@ -492,7 +504,9 @@ def control_device():
                 move_device(device, direction)
                 time.sleep(duration)
                 stop_device(device)
-                device_positions[device] = percent
+
+                with device_positions[device].get_lock():
+                    device_positions[device].value = percent
                 return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
 
         elif device == 'vib':
@@ -510,7 +524,8 @@ def control_device():
                 if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
-                multiprocessing.Process(target=move_all_by_percent, args=(percent,), daemon=True).start()
+                #use thread so it doesn't reset device positions
+                threading.Thread(target=move_all_by_percent, args=(percent,), daemon=True).start()
                 return jsonify({'status': 'ok', 'message': f'all moved to {percent}%'}), 200
 
         return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
