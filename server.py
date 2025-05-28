@@ -468,6 +468,31 @@ def move_one_by_percent(device,percent):
     with device_positions[device].get_lock():
         device_positions[device].value = percent
 
+def move_two_by_percent(device1, device2, percent):
+    durations = {}
+    directions = {}
+
+    print(f"Moving {device1} and {device2} to {percent}%")
+
+    for device in [device1, device2]:
+        with device_positions[device].get_lock():
+            current = device_positions[device].value
+            durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
+            directions[device] = 'up' if percent > current else 'down'
+
+    for device in [device1, device2]:
+        stop_device(device)
+        move_device(device, directions[device])
+
+    time.sleep(max(durations.values()))
+
+    for device in [device1, device2]:
+        stop_device(device)
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
+
+    print(f"{device1} and {device2} are now at {percent}%")
+
 def move_all_by_percent(percent):
     durations = {}
     directions = {}
@@ -560,6 +585,20 @@ def control_device():
 
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/control/two', methods=['POST'])
+def control_two_devices():
+    data = request.get_json()
+
+    device1 = data.get('device1')
+    device2 = data.get('device2')
+    percent = data.get('percent')
+
+    if not all([device1, device2, percent]) or device1 not in device_positions or device2 not in device_positions:
+        return jsonify({'status': 'error', 'message': 'Invalid devices or percent'}), 400
+
+    threading.Thread(target=move_two_by_percent, args=(device1, device2, percent), daemon=True).start()
+    return jsonify({'status': 'ok', 'message': f'{device1} and {device2} moving to {percent}%'}), 200
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)

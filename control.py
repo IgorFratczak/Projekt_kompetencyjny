@@ -1,13 +1,14 @@
 import time
 import requests
 
-RASPBERRY_IP = '172.22.112.1'
+RASPBERRY_IP = '192.168/51.229'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.51.8'
 UNITY_PORT = 5000
 UNITY_URL = f'http://{UNITY_IP}:{UNITY_PORT}/'
 
+# acc1 - back | acc2 - left | acc3 - right
 def send_command(device, action,percent = None):
     try:
         payload = {
@@ -28,6 +29,25 @@ def send_command(device, action,percent = None):
     except Exception as e:
         print("Connection error:", e)
 
+def send_command_two_devices(device1, device2, percent):
+    try:
+        if not (0 <= percent <= 100):
+            print("Percent must be between 0 and 100")
+            return
+
+        payload = {
+            "device1": device1,
+            "device2": device2,
+            "percent": percent
+        }
+        response = requests.post(f'http://{RASPBERRY_IP}/api/control/two', json=payload)
+        if response.status_code == 200:
+            print("Done:", response.json()['message'])
+        else:
+            print("Error:", response.status_code, response.text)
+    except Exception as e:
+        print("Connection error:", e)
+
 def send_scenario_to_unity(scenario_name):
     try:
         response = requests.post(UNITY_URL, data=scenario_name)
@@ -40,11 +60,12 @@ def send_scenario_to_unity(scenario_name):
 
 def print_commands():
     print("\nCommands:")
-    print("  acc1 up / down / stop / percent")
-    print("  acc2 up / down / stop / percent")
-    print("  acc3 up / down / stop / percent")
+    print("  acc1 up / down / stop / percent (value)")
+    print("  acc2 up / down / stop / percent (value)")
+    print("  acc3 up / down / stop / percent (value)")
+    print("  accX accY percent (value)")
     print("  vib start / stop")
-    print("  all up / down / percent")
+    print("  all up / down / percent (value)")
     print("  halt")
     print("  scenario easy")
     print("  scenario medium")
@@ -79,6 +100,7 @@ def scenario_hard():
 
 def main():
     print("Chair control")
+    print("acc1 - back | acc2 - left | acc3 - right")
     print_commands()
 
     while True:
@@ -102,7 +124,7 @@ def main():
             scenario_medium()
             continue
         elif cmd == "scenario hard":
-            scenario_medium()
+            scenario_hard()
             continue
         try:
             parts = cmd.split()
@@ -115,6 +137,19 @@ def main():
                     try:
                         percent = int(value)
                         send_command(device, action, percent)
+                    except ValueError:
+                        print("Invalid percent value")
+                else:
+                    print("Unknown command")
+            elif len(parts) == 4:
+                device1,device2,action,value = parts
+                if device1 == device2:
+                    print("Devices are the same")
+                    continue
+                if action == "percent":
+                    try:
+                        percent = int(value)
+                        send_command_two_devices(device1,device2, percent)
                     except ValueError:
                         print("Invalid percent value")
                 else:
