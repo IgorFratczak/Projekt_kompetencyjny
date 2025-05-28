@@ -1,7 +1,7 @@
 import time
 import requests
 
-RASPBERRY_IP = '192.168/51.229'
+RASPBERRY_IP = '192.168.42.229'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.51.8'
