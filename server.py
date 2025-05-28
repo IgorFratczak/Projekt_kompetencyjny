@@ -428,6 +428,25 @@ def move_device(device, direction):
     elif device == 'acc3':
         ch3_up() if direction == 'up' else ch3_down()
 
+def move_one_by_percent(device,percent):
+    with device_positions[device].get_lock():
+        current = device_positions[device].value
+
+    if percent == current:
+        return
+
+    move_by_percent = percent - current
+    direction = 'up' if move_by_percent > 0 else 'down'
+    duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
+
+    stop_device(device)
+    move_device(device, direction)
+    time.sleep(duration)
+    stop_device(device)
+
+    with device_positions[device].get_lock():
+        device_positions[device].value = percent
+
 def move_all_by_percent(percent):
     durations = {}
     directions = {}
@@ -493,20 +512,8 @@ def control_device():
                 if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
-                with device_positions[device].get_lock():
-                    current = device_positions[device].value
+                move_one_by_percent(device,percent)
 
-                move_by_percent = percent - current
-                direction = 'up' if move_by_percent > 0 else 'down'
-                duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
-
-                stop_device(device)
-                move_device(device, direction)
-                time.sleep(duration)
-                stop_device(device)
-
-                with device_positions[device].get_lock():
-                    device_positions[device].value = percent
                 return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
 
         elif device == 'vib':
