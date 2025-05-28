@@ -27,7 +27,24 @@ from multiprocessing import Value
 app = Flask(__name__)
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
-TimeToMaxDown = Value('d', 15.5)
+import os
+
+# Ścieżka do pliku kalibracyjnego
+CALIBRATION_FILE = "calibration.txt"
+
+# Jeśli plik nie istnieje, twórz go z wartością 30.0
+if not os.path.exists(CALIBRATION_FILE):
+    with open(CALIBRATION_FILE, 'w') as f:
+        f.write("30.0")
+
+# Wczytaj wartość z pliku
+with open(CALIBRATION_FILE, 'r') as f:
+    try:
+        calibration_value = float(f.read().strip())
+    except ValueError:
+        calibration_value = 30.0  # fallback jeśli plik uszkodzony
+
+TimeToMaxDown = Value('d', calibration_value)
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
@@ -87,7 +104,7 @@ def calibration():
         ch1_up()
         ch2_up()
         ch3_up()
-        time.sleep(30)
+        time.sleep(20)
         mode_1()
 
         # Krok 3: W dół i mierzymy czas aż znowu wciśnięte zostaną wszystkie przyciski
@@ -103,7 +120,11 @@ def calibration():
         end_time = time.time()
         duration = end_time - start_time
         print(f"Czas powrotu na dół: {duration:.2f} sekundy")
-        TimeToMaxDown.value=duration
+        TimeToMaxDown.value = duration
+
+        # Zapis do pliku
+        with open(CALIBRATION_FILE, 'w') as f:
+            f.write(f"{duration:.2f}")
         # Zatrzymanie aktuatorów
         mode_1()
 
