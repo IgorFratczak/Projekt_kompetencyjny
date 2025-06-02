@@ -577,8 +577,7 @@ def control_device():
                 if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
-                #use thread so it doesn't reset device positions
-                threading.Thread(target=move_all_by_percent, args=(percent,), daemon=True).start()
+                move_all_by_percent(percent)
                 return jsonify({'status': 'ok', 'message': f'all moved to {percent}%'}), 200
 
         return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
@@ -594,10 +593,10 @@ def control_two_devices():
     device2 = data.get('device2')
     percent = data.get('percent')
 
-    if not all([device1, device2, percent]) or device1 not in device_positions or device2 not in device_positions:
+    if not device1 or not device2 or percent is None or device1 not in device_positions or device2 not in device_positions:
         return jsonify({'status': 'error', 'message': 'Invalid devices or percent'}), 400
 
-    threading.Thread(target=move_two_by_percent, args=(device1, device2, percent), daemon=True).start()
+    move_two_by_percent(device1, device2, percent)
     return jsonify({'status': 'ok', 'message': f'{device1} and {device2} moving to {percent}%'}), 200
 
 if __name__ == '__main__':

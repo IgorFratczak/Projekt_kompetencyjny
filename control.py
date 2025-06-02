@@ -1,12 +1,16 @@
 import time
 import requests
 
-RASPBERRY_IP = '192.168.42.229'
+RASPBERRY_IP = '172.22.112.1'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.51.8'
 UNITY_PORT = 5000
 UNITY_URL = f'http://{UNITY_IP}:{UNITY_PORT}/'
+
+BACK = "acc1"
+LEFT = "acc2"
+RIGHT = "acc3"
 
 # acc1 - back | acc2 - left | acc3 - right
 def send_command(device, action,percent = None):
@@ -75,25 +79,24 @@ def print_commands():
 
 def scenario_easy():
     print("Running scenario: easy")
-    send_scenario_to_unity("scenario easy")
-    send_command("acc1", "up")
+    send_command("all", "percent",0)
+    #send_scenario_to_unity("scenario easy")
+    send_command("all", "percent",30)
     time.sleep(1)
-    send_command("acc1", "down")
+    send_command("all", "percent",0)
 
 def scenario_medium():
     print("Running scenario: medium")
-    send_scenario_to_unity("scenario medium")
-    send_command("vib", "start")
-    time.sleep(0.5)
-    send_command("vib", "stop")
-    time.sleep(0.3)
-    send_command("vib", "start")
-    time.sleep(1)
-    send_command("vib", "stop")
+    send_command("all", "percent",0)
+    #send_scenario_to_unity("scenario medium")
+    send_command_two_devices(LEFT, RIGHT, 30)
+    time.sleep(10)
+    send_command_two_devices(LEFT, RIGHT, 0)
 
 def scenario_hard():
     print("Running scenario: hard")
-    send_scenario_to_unity("scenario hard")
+    send_command("all", "percent",0)
+    #send_scenario_to_unity("scenario hard")
     send_command("vib", "start")
     time.sleep(10)
     send_command("vib", "stop")
