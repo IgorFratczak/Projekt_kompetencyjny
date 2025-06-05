@@ -1,7 +1,7 @@
 import time
 import requests
 
-RASPBERRY_IP = '172.22.112.1'
+RASPBERRY_IP = '192.168.131.229'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.51.8'
@@ -89,9 +89,13 @@ def scenario_medium():
     print("Running scenario: medium")
     send_command("all", "percent",0)
     #send_scenario_to_unity("scenario medium")
-    send_command_two_devices(LEFT, RIGHT, 30)
+    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(10)
+    send_command(BACK, "percent",20)
     time.sleep(10)
     send_command_two_devices(LEFT, RIGHT, 0)
+    time.sleep(10)
+    send_command(BACK, "percent", 0)
 
 def scenario_hard():
     print("Running scenario: hard")
