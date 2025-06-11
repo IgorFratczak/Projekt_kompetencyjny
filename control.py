@@ -1,7 +1,7 @@
 import time
 import requests
 
-RASPBERRY_IP = '192.168.131.229'
+RASPBERRY_IP = '192.168.229.229'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.51.8'
@@ -77,33 +77,107 @@ def print_commands():
 
     print("  exit\n")
 
+def turbulences(loop_length,percent):
+    send_command("vib", "start")
+    for _ in range(loop_length):
+        send_command(LEFT, "percent", percent + 1)
+        send_command(RIGHT, "percent", percent + 1)
+        send_command(BACK, "percent", percent + 1)
+
+        send_command(LEFT, "percent", percent)
+        send_command(RIGHT, "percent", percent)
+        send_command(BACK, "percent", percent)
+    send_command("vib", "stop")
+
 def scenario_easy():
     print("Running scenario: easy")
-    send_command("all", "percent",0)
+    send_command("all", "percent", 0)
     #send_scenario_to_unity("scenario easy")
-    send_command("all", "percent",30)
+
+    # Start lotu
+    send_command("vib", "start")
     time.sleep(1)
-    send_command("all", "percent",0)
+    send_command("vib", "stop")
+
+    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(8)
+
+    # Stabilny lot
+    send_command("all", "percent", 20)
+    time.sleep(20)
+
+    # Lądowanie
+    send_command_two_devices(LEFT, RIGHT, 0)
+    time.sleep(8)
+    send_command(BACK, "percent", 0)
+
 
 def scenario_medium():
     print("Running scenario: medium")
-    send_command("all", "percent",0)
+    send_command("all", "percent", 0)
     #send_scenario_to_unity("scenario medium")
-    send_command_two_devices(LEFT, RIGHT, 20)
+
+    # Start lotu
+    send_command("vib", "start")
+    time.sleep(2)
+    send_command_two_devices(LEFT, RIGHT, 30)
     time.sleep(10)
-    send_command(BACK, "percent",20)
+    send_command("vib", "stop")
+
+    # Stabilny lot
+    send_command("all", "percent", 30)
     time.sleep(10)
+
+    # Lekkie turbulencje
+    print("Simulating light turbulence")
+    send_command("vib", "start")
+    time.sleep(4)
+    send_command("vib", "stop")
+
+    time.sleep(10)
+
+    # Lądowanie
     send_command_two_devices(LEFT, RIGHT, 0)
     time.sleep(10)
     send_command(BACK, "percent", 0)
 
+
 def scenario_hard():
     print("Running scenario: hard")
-    send_command("all", "percent",0)
-    #send_scenario_to_unity("scenario hard")
+    send_command("all", "percent", 0)
+
+    # Start lotu
     send_command("vib", "start")
-    time.sleep(10)
+    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(1)
     send_command("vib", "stop")
+
+    # Stabilny lot
+    send_command("all", "percent", 20)
+    time.sleep(3)
+
+    # Turbulencje
+    # for _ in range(3):
+    #     send_command("vib", "start")
+    #     time.sleep(5)
+    #     send_command("vib", "stop")
+    #     time.sleep(2)
+
+    # for _ in range(10):
+    #     send_command("vib", "start")
+    #     time.sleep(1)
+    #     send_command("vib", "stop")
+    #     time.sleep(0.5)
+    turbulences(10,20)
+
+    # Stabilizacja
+    time.sleep(10)
+
+    # Lądowanie
+    send_command_two_devices(LEFT, RIGHT, 0)
+    time.sleep(12)
+    send_command(BACK, "percent", 0)
+
 
 def main():
     print("Chair control")
