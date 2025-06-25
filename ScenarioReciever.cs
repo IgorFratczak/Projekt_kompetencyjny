@@ -32,7 +32,25 @@ public class ScenarioReceiver : MonoBehaviour
                 using (var reader = new System.IO.StreamReader(request.InputStream, request.ContentEncoding))
                 {
                     string body = await reader.ReadToEndAsync();
-                    Debug.Log("Received scenario: " + body);
+                    Debug.Log("Received: " + body);
+
+                    try
+                    {
+                        var json = JObject.Parse(body);
+                        string command = json["command"]?.ToString();
+
+                        switch (command)
+                        {
+                            case "play_sound":
+                                string soundName = json["sound_name"]?.ToString();
+                                PlaySound(soundName);
+                                break;
+                        }
+                    }
+                    catch
+                    {
+                        Debug.LogError("Invalid JSON or missing fields.");
+                    }
                 }
 
                 var response = context.Response;
@@ -56,5 +74,10 @@ public class ScenarioReceiver : MonoBehaviour
         cts.Cancel();
         listener.Stop();
         listener.Close();
+    }
+
+        void PlaySound(string name)
+    {
+        Debug.Log("Playing sound: " + name);
     }
 }

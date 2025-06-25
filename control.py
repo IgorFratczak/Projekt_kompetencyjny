@@ -52,13 +52,14 @@ def send_command_two_devices(device1, device2, percent):
     except Exception as e:
         print("Connection error:", e)
 
-def send_scenario_to_unity(scenario_name):
+def send_to_unity(payload):
     try:
-        response = requests.post(UNITY_URL, data=scenario_name)
+        headers = {'Content-Type': 'application/json'}
+        response = requests.post(UNITY_URL, json=payload, headers=headers)
         if response.status_code == 200:
-            print(f"Sent scenario '{scenario_name}' to Unity")
+            print("Sent to Unity:", payload)
         else:
-            print(f"Failed to send scenario to Unity: {response.status_code}")
+            print("Failed to send to Unity:", response.status_code)
     except Exception as e:
         print("Error sending to Unity:", e)
 
@@ -100,6 +101,8 @@ def scenario_easy():
     send_command("vib", "stop")
 
     send_command_two_devices(LEFT, RIGHT, 20)
+    send_to_unity({"command": "play_sound", "sound_name": "alarm"})
+
     time.sleep(8)
 
     # Stabilny lot
