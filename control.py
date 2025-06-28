@@ -2,7 +2,7 @@ import time
 import requests
 import threading
 
-RASPBERRY_IP = '192.168.229.229'
+RASPBERRY_IP = '172.29.64.1'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.1.80'
@@ -25,6 +25,13 @@ def check_stop():
             print("Error:", e)
         raise KeyboardInterrupt
 
+def check_if_stopped(func):
+    def wrapper(*args, **kwargs):
+        check_stop()
+        return func(*args, **kwargs)
+    return wrapper
+
+@check_if_stopped
 def send_command(device, action, percent=None):
     try:
         payload = {
@@ -45,6 +52,7 @@ def send_command(device, action, percent=None):
     except Exception as e:
         print("Connection error:", e)
 
+@check_if_stopped
 def send_command_two_devices(device1, device2, percent):
     try:
         if not (0 <= percent <= 100):
@@ -64,6 +72,7 @@ def send_command_two_devices(device1, device2, percent):
     except Exception as e:
         print("Connection error:", e)
 
+@check_if_stopped
 def send_to_unity(payload):
     try:
         headers = {'Content-Type': 'application/json'}
@@ -90,9 +99,11 @@ def print_commands():
     print("  stop")
     print("  exit\n")
 
+@check_if_stopped
 def turbulences(loop_length,percent):
     send_command("vib", "start")
     for _ in range(loop_length):
+        check_stop()
         send_command(LEFT, "percent", percent + 1)
         send_command(RIGHT, "percent", percent + 1)
         send_command(BACK, "percent", percent + 1)
@@ -103,102 +114,89 @@ def turbulences(loop_length,percent):
     send_command("vib", "stop")
 
 def scenario_easy():
-    print("Running scenario: easy")
-    check_stop()
-    send_to_unity({"command": "play_sound", "sound_name": "test"})
+    print("Running scenario: easy\n")
+
     time.sleep(3)
-
-    check_stop()
     send_to_unity({"command": "play_sound", "sound_name": "plane"})
-
-    # send_command("all", "percent", 0)
-    # #send_scenario_to_unity("scenario easy")
-    #
-    # # Start lotu
-    # send_command("vib", "start")
-    # time.sleep(1)
-    # send_command("vib", "stop")
-    #
-    # send_command_two_devices(LEFT, RIGHT, 20)
-    #
-    # time.sleep(8)
-    #
-    # # Stabilny lot
-    # send_command("all", "percent", 20)
-    # time.sleep(20)
-    #
-    # # Lądowanie
-    # send_command_two_devices(LEFT, RIGHT, 0)
-    # time.sleep(8)
-    # send_command(BACK, "percent", 0)
-
-
-def scenario_medium():
-    print("Running scenario: medium")
-    send_command("all", "percent", 0)
-    #send_scenario_to_unity("scenario medium")
-
-    # Start lotu
-    send_command("vib", "start")
-    time.sleep(2)
-    send_command_two_devices(LEFT, RIGHT, 30)
-    time.sleep(10)
-    send_command("vib", "stop")
-
-    # Stabilny lot
-    send_command("all", "percent", 30)
-    time.sleep(10)
-
-    # Lekkie turbulencje
-    print("Simulating light turbulence")
-    send_command("vib", "start")
-    time.sleep(4)
-    send_command("vib", "stop")
-
-    time.sleep(10)
-
-    # Lądowanie
-    send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(10)
-    send_command(BACK, "percent", 0)
-
-
-def scenario_hard():
-    print("Running scenario: hard")
     send_command("all", "percent", 0)
 
     # Start lotu
     send_command("vib", "start")
+    time.sleep(3)
+    send_command("vib", "stop")
+
     send_command_two_devices(LEFT, RIGHT, 20)
-    time.sleep(1)
-    send_command("vib", "stop")
+
+    time.sleep(8)
 
     # Stabilny lot
     send_command("all", "percent", 20)
-    time.sleep(3)
-
-    # Turbulencje
-    # for _ in range(3):
-    #     send_command("vib", "start")
-    #     time.sleep(5)
-    #     send_command("vib", "stop")
-    #     time.sleep(2)
-
-    # for _ in range(10):
-    #     send_command("vib", "start")
-    #     time.sleep(1)
-    #     send_command("vib", "stop")
-    #     time.sleep(0.5)
-    turbulences(10,20)
-
-    # Stabilizacja
-    time.sleep(10)
+    time.sleep(20)
 
     # Lądowanie
     send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(12)
+    time.sleep(8)
     send_command(BACK, "percent", 0)
 
+    time.sleep(5)
+
+def scenario_medium():
+    print("Running scenario: medium\n")
+
+    time.sleep(3)
+    send_to_unity({"command": "play_sound", "sound_name": "plane"})
+    send_command("all", "percent", 0)
+
+    # Startowanie samolotu
+    send_command("vib", "start")
+    time.sleep(2)
+    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(10)
+    send_command("vib", "stop")
+
+    send_command("all", "percent", 20)
+    time.sleep(20)
+
+    # Lekkie turbulencje
+    print("Simulating light turbulence")
+    turbulences(20,1)
+
+    # Stabilny lot
+    time.sleep(20)
+
+    # Lądowanie samolotu
+    send_command_two_devices(LEFT, RIGHT, 0)
+    time.sleep(10)
+    send_command(BACK, "percent", 0)
+    time.sleep(5)
+
+def scenario_hard():
+    print("Running scenario: hard\n")
+
+    time.sleep(3)
+    send_to_unity({"command": "play_sound", "sound_name": "plane"})
+    send_command("all", "percent", 0)
+
+    # Startowanie samolotu
+    send_command("vib", "start")
+    time.sleep(2)
+    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(10)
+    send_command("vib", "stop")
+
+    send_command("all", "percent", 20)
+    time.sleep(20)
+
+    print("Simulating heavy turbulence")
+    for _ in range(4):
+        turbulences(30, 1)
+        time.sleep(5)
+
+    # Lądowanie samolotu
+    send_command_two_devices(LEFT, RIGHT, 0)
+    time.sleep(12)
+    send_command(BACK, "percent", 0)
+    time.sleep(5)
 
 def main():
     global stop_requested, scenario_thread
