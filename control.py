@@ -1,10 +1,11 @@
 import time
 import requests
+import threading
 
 RASPBERRY_IP = '192.168.229.229'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
-UNITY_IP = '192.168.51.8'
+UNITY_IP = '192.168.1.80'
 UNITY_PORT = 5000
 UNITY_URL = f'http://{UNITY_IP}:{UNITY_PORT}/'
 
@@ -12,8 +13,19 @@ BACK = "acc1"
 LEFT = "acc2"
 RIGHT = "acc3"
 
-# acc1 - back | acc2 - left | acc3 - right
-def send_command(device, action,percent = None):
+stop_requested = False
+scenario_thread = None
+
+def check_stop():
+    if stop_requested:
+        try:
+            halt_response = requests.get(f'http://{RASPBERRY_IP}/halt')
+            print("Done:", halt_response.status_code)
+        except Exception as e:
+            print("Error:", e)
+        raise KeyboardInterrupt
+
+def send_command(device, action, percent=None):
     try:
         payload = {
             "device": device,
@@ -75,7 +87,7 @@ def print_commands():
     print("  scenario easy")
     print("  scenario medium")
     print("  scenario hard")
-
+    print("  stop")
     print("  exit\n")
 
 def turbulences(loop_length,percent):
@@ -92,27 +104,33 @@ def turbulences(loop_length,percent):
 
 def scenario_easy():
     print("Running scenario: easy")
-    send_command("all", "percent", 0)
-    #send_scenario_to_unity("scenario easy")
+    check_stop()
+    send_to_unity({"command": "play_sound", "sound_name": "test"})
+    time.sleep(3)
 
-    # Start lotu
-    send_command("vib", "start")
-    time.sleep(1)
-    send_command("vib", "stop")
+    check_stop()
+    send_to_unity({"command": "play_sound", "sound_name": "plane"})
 
-    send_command_two_devices(LEFT, RIGHT, 20)
-    send_to_unity({"command": "play_sound", "sound_name": "alarm"})
-
-    time.sleep(8)
-
-    # Stabilny lot
-    send_command("all", "percent", 20)
-    time.sleep(20)
-
-    # Lądowanie
-    send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(8)
-    send_command(BACK, "percent", 0)
+    # send_command("all", "percent", 0)
+    # #send_scenario_to_unity("scenario easy")
+    #
+    # # Start lotu
+    # send_command("vib", "start")
+    # time.sleep(1)
+    # send_command("vib", "stop")
+    #
+    # send_command_two_devices(LEFT, RIGHT, 20)
+    #
+    # time.sleep(8)
+    #
+    # # Stabilny lot
+    # send_command("all", "percent", 20)
+    # time.sleep(20)
+    #
+    # # Lądowanie
+    # send_command_two_devices(LEFT, RIGHT, 0)
+    # time.sleep(8)
+    # send_command(BACK, "percent", 0)
 
 
 def scenario_medium():
@@ -183,17 +201,22 @@ def scenario_hard():
 
 
 def main():
+    global stop_requested, scenario_thread
+
     print("Chair control")
     print("acc1 - back | acc2 - left | acc3 - right")
     print_commands()
 
     while True:
         cmd = input("> ").strip().lower()
+
         if cmd == "exit":
             break
+
         elif cmd == "help":
             print_commands()
             continue
+
         elif cmd == "halt":
             try:
                 halt_response = requests.get(f'http://{RASPBERRY_IP}/halt')
@@ -201,15 +224,46 @@ def main():
             except Exception as e:
                 print("Error:", e)
             continue
-        elif cmd == "scenario easy":
-            scenario_easy()
+
+        elif cmd.startswith("scenario"):
+            if scenario_thread and scenario_thread.is_alive():
+                print("Scenario is already running. Use 'stop' to interrupt.")
+                continue
+
+            stop_requested = False
+            parts = cmd.split()
+            if len(parts) != 2:
+                print("Specify scenario: easy / medium / hard")
+                continue
+            scenario_name = parts[1]
+
+            def run_scenario():
+                try:
+                    if scenario_name == "easy":
+                        scenario_easy()
+                    elif scenario_name == "medium":
+                        scenario_medium()
+                    elif scenario_name == "hard":
+                        scenario_hard()
+                    else:
+                        print("Unknown scenario")
+                except KeyboardInterrupt:
+                    print("Scenario forcefully stopped.")
+                    send_command("vib", "stop")
+                    send_command("all", "percent", 0)
+
+            scenario_thread = threading.Thread(target=run_scenario)
+            scenario_thread.start()
             continue
-        elif cmd == "scenario medium":
-            scenario_medium()
+
+        elif cmd == "stop":
+            stop_requested = True
+            print("Stop requested. Waiting for scenario to halt...")
+            if scenario_thread:
+                scenario_thread.join()
+                print("Scenario halted.")
             continue
-        elif cmd == "scenario hard":
-            scenario_hard()
-            continue
+
         try:
             parts = cmd.split()
             if len(parts) == 2:
@@ -218,30 +272,24 @@ def main():
             elif len(parts) == 3:
                 device, action, value = parts
                 if action == "percent":
-                    try:
-                        percent = int(value)
-                        send_command(device, action, percent)
-                    except ValueError:
-                        print("Invalid percent value")
+                    percent = int(value)
+                    send_command(device, action, percent)
                 else:
                     print("Unknown command")
             elif len(parts) == 4:
-                device1,device2,action,value = parts
+                device1, device2, action, value = parts
                 if device1 == device2:
                     print("Devices are the same")
                     continue
                 if action == "percent":
-                    try:
-                        percent = int(value)
-                        send_command_two_devices(device1,device2, percent)
-                    except ValueError:
-                        print("Invalid percent value")
+                    percent = int(value)
+                    send_command_two_devices(device1, device2, percent)
                 else:
                     print("Unknown command")
             else:
                 print("Unknown command")
-        except ValueError:
-            print("Unknown command")
+        except Exception as e:
+            print("Error:", e)
 
 if __name__ == "__main__":
     main()

@@ -3,16 +3,29 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using Newtonsoft.Json.Linq;
+using System.Collections.Concurrent;
 
 public class ScenarioReceiver : MonoBehaviour
 {
     private HttpListener listener;
     private CancellationTokenSource cts;
+    public SoundManager soundManager;
+
+    private static ConcurrentQueue<System.Action> mainThreadActions = new ConcurrentQueue<System.Action>();
 
     void Start()
     {
         cts = new CancellationTokenSource();
         Task.Run(() => StartListener(cts.Token));
+    }
+
+    void Update()
+    { 
+        while (mainThreadActions.TryDequeue(out var action))
+        {
+            action?.Invoke();
+        }
     }
 
     private async Task StartListener(CancellationToken token)
@@ -37,19 +50,36 @@ public class ScenarioReceiver : MonoBehaviour
                     try
                     {
                         var json = JObject.Parse(body);
-                        string command = json["command"]?.ToString();
+
+                        if (json["command"] == null)
+                        {
+                            Debug.LogWarning("Missing 'command' field in JSON.");
+                            continue;
+                        }
+
+                        string command = json["command"].ToString();
 
                         switch (command)
                         {
                             case "play_sound":
-                                string soundName = json["sound_name"]?.ToString();
-                                PlaySound(soundName);
+                                if (json["sound_name"] == null)
+                                {
+                                    Debug.LogWarning("Missing 'sound_name' field for play_sound.");
+                                    continue;
+                                }
+                                string soundName = json["sound_name"].ToString();
+
+                                mainThreadActions.Enqueue(() => PlaySound(soundName));
+                                break;
+
+                            default:
+                                Debug.LogWarning("Unknown command: " + command);
                                 break;
                         }
                     }
-                    catch
+                    catch (System.Exception ex)
                     {
-                        Debug.LogError("Invalid JSON or missing fields.");
+                        Debug.LogError("Invalid JSON: " + ex.Message);
                     }
                 }
 
@@ -76,8 +106,9 @@ public class ScenarioReceiver : MonoBehaviour
         listener.Close();
     }
 
-        void PlaySound(string name)
+    void PlaySound(string name)
     {
         Debug.Log("Playing sound: " + name);
+        soundManager.PlaySound(name);
     }
 }
