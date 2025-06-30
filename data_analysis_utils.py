@@ -4,8 +4,8 @@ import os
 import joblib
 import pandas as pd
 
-from generate_report.content_html import generate_index_html
-from generate_report.plots_utils import save_all_plots, save_all_emotions_plots
+from content_html import generate_index_html
+from plots_utils import save_all_plots, save_all_emotions_plots
 
 """
 Funkcja tworząca katalog, jeżeli nie istnieje
