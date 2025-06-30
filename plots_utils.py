@@ -159,7 +159,7 @@ filename : str - nazwa dla zdjęcia wykresu
 def save_emotion_plot(data, directory_name : str = "", title : str = "", filename : str = ""):
     label_translation = {
         'natural': 'naturalny',
-        'happy': 'szczęśliwy',
+        'happy': 'wesoły',
         'sad': 'smutny',
         'surprised': 'zaskoczony',
         'disturbed': 'zaniepokojony'

@@ -4,8 +4,8 @@ import os
 import joblib
 import pandas as pd
 
-from generate_report.content_html import generate_index_html
-from generate_report.plots_utils import save_all_plots, save_all_emotions_plots
+from content_html import generate_index_html
+from plots_utils import save_all_plots, save_all_emotions_plots
 
 """
 Funkcja tworząca katalog, jeżeli nie istnieje
@@ -430,6 +430,15 @@ columns_to_predict = ['rightCheekRiseValue', 'leftCheekRiseValue', 'rightSmileVa
                       'rightLipCornerDepressor']
 
 """
+Funkcja zamieniająca nazwe katalogu na odpowiadającą mu date i czas
+"""
+def create_title(text : str):
+    split_date_and_time = text.split('_')
+    split_date = split_date_and_time[0].split('-')
+    split_time = split_date_and_time[1].split('-')
+
+    return f'{split_date[2]}/{split_date[1]}/{split_date[0]} {split_time[0]}:{split_time[1]}:{split_time[2]}'
+"""
 Funkcja generująca raport z badania w formie pliku html.
 Zapisuje wykresy do folderu odpowiadającego dacie i czasie pliku z danymi,
 w folderze plots, zapisuje również plik JSON zawierający informacje o mruganiu, zamknięciu oczu, 
@@ -567,10 +576,10 @@ def generate_report(filename):
     index_html_path = os.path.join(report_dir_name, "index.html")
 
     """
-    Zapis pliku index.html w katalogu dla danych z raportu
+    Zapis pliku index.html w katalogu dla danych z raportu, oraz tworzenie tytułu po dacie z nazwy katalogu
     """
     with open(index_html_path, "w", encoding="utf-8") as f:
-        f.write(generate_index_html(report_dir_name, str(more_info)))
+        f.write(generate_index_html(create_title(report_dir_name), str(more_info)))
 
     print(f"Plik index.html został zapisany w: {index_html_path}")
     print(f"Raport został pomyślnie wygenerowany w katalogu: '{report_dir_name}'")

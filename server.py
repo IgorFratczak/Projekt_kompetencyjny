@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request
 from flask import jsonify
 import threading
+from data_analysis_utils import generate_report
 
 try:
     import RPi.GPIO as GPIO
@@ -598,6 +599,25 @@ def control_two_devices():
 
     move_two_by_percent(device1, device2, percent)
     return jsonify({'status': 'ok', 'message': f'{device1} and {device2} moving to {percent}%'}), 200
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"success": False, "message": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "message": "No selected file"}), 400
+
+    filepath = os.path.join(os.getcwd(), file.filename)
+
+    try:
+        file.save(filepath)
+        print(f"Saved file: {filepath}")
+        generate_report(file.filename)
+        return jsonify({"success": True, "message": f"File saved as {file.filename}"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)
