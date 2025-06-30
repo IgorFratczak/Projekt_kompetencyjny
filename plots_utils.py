@@ -162,7 +162,7 @@ def save_emotion_plot(data, directory_name : str = "", title : str = "", filenam
         'happy': 'wesoły',
         'sad': 'smutny',
         'surprised': 'zaskoczony',
-        'disturbed': 'zaniepokojony'
+        'disturbed': 'wystraszony'
     }
 
     emotions_filtered = {k: v for k, v in data.items() if v > 0}
