@@ -614,7 +614,7 @@ def upload_file():
     try:
         file.save(filepath)
         print(f"Saved file: {filepath}")
-        generate_report(file.filename)
+        threading.Thread(target=generate_report, args=(file.filename,)).start()
         return jsonify({"success": True, "message": f"File saved as {file.filename}"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
