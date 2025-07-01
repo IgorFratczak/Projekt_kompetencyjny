@@ -11,6 +11,10 @@ public class ScenarioReceiver : MonoBehaviour
     private HttpListener listener;
     private CancellationTokenSource cts;
     public SoundManager soundManager;
+    public LightManager lightManager;
+    public MotionManager motionManager;
+    public TimeManager timeManager;
+    public FaceTracking faceTracking;
 
     private static ConcurrentQueue<System.Action> mainThreadActions = new ConcurrentQueue<System.Action>();
 

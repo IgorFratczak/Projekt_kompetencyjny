@@ -2,7 +2,7 @@ import time
 import requests
 import threading
 
-RASPBERRY_IP = '172.29.64.1'
+RASPBERRY_IP = '172.20.10.10'
 API_URL = f'http://{RASPBERRY_IP}/api/control'
 
 UNITY_IP = '192.168.1.80'
@@ -12,6 +12,12 @@ UNITY_URL = f'http://{UNITY_IP}:{UNITY_PORT}/'
 BACK = "acc1"
 LEFT = "acc2"
 RIGHT = "acc3"
+
+actuator_state = {
+    BACK: 0,
+    LEFT: 0,
+    RIGHT: 0
+}
 
 stop_requested = False
 scenario_thread = None
@@ -31,8 +37,18 @@ def check_if_stopped(func):
         return func(*args, **kwargs)
     return wrapper
 
+def get_calibrated_duration(percent):
+    try:
+        with open("calibration.txt", "r") as f:
+            max_duration = float(f.readline().strip())
+            duration = max_duration * (abs(percent) / 100.0)
+            return duration
+    except Exception as e:
+        print("Error reading calibration.txt:", e)
+        return 0
+
 @check_if_stopped
-def send_command(device, action, percent=None):
+def send_command(device, action, percent=None, save_state = False):
     try:
         payload = {
             "device": device,
@@ -43,6 +59,13 @@ def send_command(device, action, percent=None):
                 print("Wrong percent: must be between 0 and 100")
                 return
             payload['percent'] = percent
+            if action == "percent" and save_state == True:
+                if device == "all":
+                    actuator_state[BACK] = percent
+                    actuator_state[LEFT] = percent
+                    actuator_state[RIGHT] = percent
+                elif device in actuator_state:
+                    actuator_state[device] = percent
 
         response = requests.post(API_URL, json=payload)
         if response.status_code == 200:
@@ -53,7 +76,7 @@ def send_command(device, action, percent=None):
         print("Connection error:", e)
 
 @check_if_stopped
-def send_command_two_devices(device1, device2, percent):
+def send_command_two_devices(device1, device2, percent, save_state = False):
     try:
         if not (0 <= percent <= 100):
             print("Percent must be between 0 and 100")
@@ -64,6 +87,12 @@ def send_command_two_devices(device1, device2, percent):
             "device2": device2,
             "percent": percent
         }
+
+        if device1 in actuator_state and save_state == True:
+            actuator_state[device1] = percent
+        if device2 in actuator_state and save_state == True:
+            actuator_state[device2] = percent
+
         response = requests.post(f'http://{RASPBERRY_IP}/api/control/two', json=payload)
         if response.status_code == 200:
             print("Done:", response.json()['message'])
@@ -74,6 +103,7 @@ def send_command_two_devices(device1, device2, percent):
 
 @check_if_stopped
 def send_to_unity(payload):
+    return
     try:
         headers = {'Content-Type': 'application/json'}
         response = requests.post(UNITY_URL, json=payload, headers=headers)
@@ -84,13 +114,40 @@ def send_to_unity(payload):
     except Exception as e:
         print("Error sending to Unity:", e)
 
+def  move_actuators(percent, *devices):
+    if not devices:
+        print("No devices specified for move_actuators.")
+        return
+
+    if len(devices) == 1:
+        send_command(devices[0], "percent", percent, False)
+    elif len(devices) == 2:
+        send_command_two_devices(devices[0], devices[1], percent, False)
+
+    duration = get_calibrated_duration(percent)
+    for device in devices:
+        previous_percent = actuator_state.get(device, 0)
+        delta = percent - previous_percent
+
+        unity_percent = 20 if delta > 0 else -20 if delta < 0 else 0
+
+        print("prev %:", previous_percent ,"device", device, "delta", delta, "moving in unity by:", unity_percent)
+        payload = {
+            "command": "rotate_platform",
+            "actuator_name": device,
+            "percent": unity_percent,
+            "duration": duration
+        }
+        send_to_unity(payload)
+
+        actuator_state[device] = percent
+
 def print_commands():
     print("\nCommands:")
     print("  acc1 up / down / stop / percent (value)")
     print("  acc2 up / down / stop / percent (value)")
     print("  acc3 up / down / stop / percent (value)")
     print("  accX accY percent (value)")
-    print("  vib start / stop")
     print("  all up / down / percent (value)")
     print("  halt")
     print("  scenario easy")
@@ -100,103 +157,188 @@ def print_commands():
     print("  exit\n")
 
 @check_if_stopped
-def turbulences(loop_length,percent):
+def turbulences(loop_length):
     send_command("vib", "start")
+    base_left = actuator_state[LEFT]
+    base_right = actuator_state[RIGHT]
+    base_back = actuator_state[BACK]
+
     for _ in range(loop_length):
         check_stop()
-        send_command(LEFT, "percent", percent + 1)
-        send_command(RIGHT, "percent", percent + 1)
-        send_command(BACK, "percent", percent + 1)
+        send_command(LEFT, "percent", base_left + 1)
+        send_command(RIGHT, "percent", base_right + 1)
+        send_command(BACK, "percent", base_back + 1.33)
 
-        send_command(LEFT, "percent", percent)
-        send_command(RIGHT, "percent", percent)
-        send_command(BACK, "percent", percent)
+        send_command(LEFT, "percent", base_left + 0.1)
+        send_command(RIGHT, "percent", base_right + 0.1)
+        send_command(BACK, "percent", base_back)
     send_command("vib", "stop")
+
+    actuator_state[LEFT] = base_left
+    actuator_state[RIGHT] = base_right
+    actuator_state[BACK] = base_back
 
 def scenario_easy():
     print("Running scenario: easy\n")
-
-    time.sleep(3)
-    send_to_unity({"command": "play_sound", "sound_name": "plane"})
     send_command("all", "percent", 0)
+    send_command("all", "percent", 20)
 
-    # Start lotu
+    time.sleep(10)
+
+    send_to_unity({"command": "set_flag", "type": 1})
+    send_to_unity({"command": "set_time", "time": "day"})
+    send_to_unity({"command": "start_face_tracking"})
+    send_to_unity({"command": "play_sound", "sound_name": "flight"})
+
+    # Dźwięk startu
+    send_to_unity({"command": "play_sound", "sound_name": "take_off"})
     send_command("vib", "start")
-    time.sleep(3)
-    send_command("vib", "stop")
+    time.sleep(34)
 
-    send_command_two_devices(LEFT, RIGHT, 20)
-
-    time.sleep(8)
+    move_actuators(40, LEFT, RIGHT)
+    time.sleep(15)
 
     # Stabilny lot
-    send_command("all", "percent", 20)
-    time.sleep(20)
+    move_actuators(70, BACK)
+    time.sleep(10)
+    send_command("vib", "stop")
+
+    send_to_unity({"command": "set_flag", "type": 0})
+    time.sleep(120)
 
     # Lądowanie
-    send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(8)
-    send_command(BACK, "percent", 0)
+    send_to_unity({"command": "set_flag", "type": 3})
+    send_to_unity({"command": "play_sound", "sound_name": "landing"})
+    time.sleep(38)
+    move_actuators(20, LEFT, RIGHT)
+    time.sleep(15)
+    move_actuators(20, BACK)
 
-    time.sleep(5)
+    time.sleep(10)
+    send_to_unity({"command": "exit"})
+
+    print("Scenario EASY completed.")
 
 def scenario_medium():
     print("Running scenario: medium\n")
-
-    time.sleep(3)
-    send_to_unity({"command": "play_sound", "sound_name": "plane"})
     send_command("all", "percent", 0)
+    time.sleep(5)
+    send_command("all", "percent", 20)
+    send_command(BACK, "percent", 35)
+    for i in actuator_state:
+        actuator_state[i] = 20
 
-    # Startowanie samolotu
+    time.sleep(10)
+
+    send_to_unity({"command": "set_flag", "type": 1})
+    send_to_unity({"command": "set_time", "time": "day"})
+    send_to_unity({"command": "start_face_tracking"})
+    send_to_unity({"command": "play_sound", "sound_name": "flight"})
+
+    # Dźwięk startu
+    send_to_unity({"command": "play_sound", "sound_name": "take_off"})
     send_command("vib", "start")
     time.sleep(2)
-    send_command_two_devices(LEFT, RIGHT, 20)
+
+    move_actuators(40, LEFT, RIGHT)
+    time.sleep(15)
+
+    # Stabilny lot
+    move_actuators(80, BACK)
     time.sleep(10)
     send_command("vib", "stop")
 
-    send_command("all", "percent", 20)
-    time.sleep(20)
+    send_to_unity({"command": "set_flag", "type": 0})
+    time.sleep(15)
 
     # Lekkie turbulencje
-    print("Simulating light turbulence")
-    turbulences(20,1)
+    print("Simulating light turbulence...")
+    send_to_unity({"command": "set_flag", "type": 2})
+    turbulences(loop_length=20)
+    send_command_two_devices(LEFT,RIGHT,actuator_state[LEFT] + 5)
+    send_command(BACK, "percent",actuator_state[BACK] + 15)
+    time.sleep(5)
 
     # Stabilny lot
-    time.sleep(20)
+    send_to_unity({"command": "set_flag", "type": 0})
+    time.sleep(25)
 
-    # Lądowanie samolotu
-    send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(10)
-    send_command(BACK, "percent", 0)
+    # Lekkie turbulencje
+    print("Simulating light turbulence...")
+    send_to_unity({"command": "set_flag", "type": 2})
+    turbulences(loop_length=10)
+    send_command_two_devices(LEFT, RIGHT, actuator_state[LEFT] + 2)
+    send_command_two_devices(BACK, actuator_state[LEFT] + 10)
     time.sleep(5)
+
+    # Stabilny lot
+    send_to_unity({"command": "set_flag", "type": 0})
+    time.sleep(15)
+
+    # Lądowanie
+    send_to_unity({"command": "set_flag", "type": 3})
+    send_to_unity({"command": "play_sound", "sound_name": "landing"})
+    time.sleep(38)
+    move_actuators(30, LEFT, RIGHT)
+    time.sleep(15)
+    move_actuators(45, BACK)
+
+    time.sleep(10)
+    send_to_unity({"command": "exit"})
+
+    print("Scenario MEDIUM completed.")
 
 def scenario_hard():
     print("Running scenario: hard\n")
-
-    time.sleep(3)
-    send_to_unity({"command": "play_sound", "sound_name": "plane"})
     send_command("all", "percent", 0)
+    send_command("all", "percent", 20)
+    time.sleep(10)
 
-    # Startowanie samolotu
+    send_to_unity({"command": "set_flag", "type": 1})
+    send_to_unity({"command": "set_time", "time": "night"})
+    send_to_unity({"command": "start_face_tracking"})
+    send_to_unity({"command": "play_sound", "sound_name": "flight"})
+
+    # Start
+    send_to_unity({"command": "play_sound", "sound_name": "take_off"})
     send_command("vib", "start")
-    time.sleep(2)
-    send_command_two_devices(LEFT, RIGHT, 20)
+    time.sleep(1)
+
+    move_actuators(40, LEFT, RIGHT)
+    time.sleep(10)
+
+    # Stabilny lot
+    send_to_unity({"command": "set_flag", "type": 0})
+    move_actuators(70, BACK)
     time.sleep(10)
     send_command("vib", "stop")
+    time.sleep(2)
 
-    send_command("all", "percent", 20)
-    time.sleep(20)
-
-    print("Simulating heavy turbulence")
-    for _ in range(4):
-        turbulences(30, 1)
+    # Silne turbulencje
+    print("Simulating heavy turbulence...")
+    send_to_unity({"command": "set_flag", "type": 2})
+    for _ in range(3):
+        turbulences(loop_length=20)
+        send_command_two_devices(LEFT, RIGHT, actuator_state[LEFT] + 5)
+        send_command(BACK, "percent", actuator_state[BACK] + 15)
         time.sleep(5)
 
-    # Lądowanie samolotu
-    send_command_two_devices(LEFT, RIGHT, 0)
-    time.sleep(12)
-    send_command(BACK, "percent", 0)
-    time.sleep(5)
+    # Stabilny lot
+    send_to_unity({"command": "set_flag", "type": 0})
+    time.sleep(20)
+
+    # Lądowanie
+    send_to_unity({"command": "set_flag", "type": 3})
+    send_to_unity({"command": "play_sound", "sound_name": "landing"})
+    time.sleep(38)
+    move_actuators(20, LEFT, RIGHT)
+    time.sleep(15)
+    move_actuators(20, BACK)
+
+    time.sleep(10)
+    send_to_unity({"command": "exit"})
+
+    print("Scenario HARD completed.")
 
 def main():
     global stop_requested, scenario_thread
@@ -255,12 +397,16 @@ def main():
             continue
 
         elif cmd == "stop":
+            send_command("vib", "stop")
             stop_requested = True
             print("Stop requested. Waiting for scenario to halt...")
             if scenario_thread:
                 scenario_thread.join()
                 print("Scenario halted.")
             continue
+
+        elif cmd == "all down":
+            send_command("all", "down")
 
         try:
             parts = cmd.split()
