@@ -459,7 +459,17 @@ def move_one_by_percent(device,percent):
 
     move_by_percent = percent - current
     direction = 'up' if move_by_percent > 0 else 'down'
-    duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
+
+    if device == 'acc1':
+        try:
+            with open("back_calibration.txt", "r") as f:
+                val = float(f.readline().strip())
+            duration = abs(move_by_percent) / 100 * val
+        except Exception:
+            print("Failed to load back calibration, using default")
+            duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
+    else:
+        duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
 
     stop_device(device)
     move_device(device, direction)
