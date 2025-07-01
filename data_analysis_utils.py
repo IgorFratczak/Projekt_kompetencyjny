@@ -579,7 +579,8 @@ def generate_report(filename):
     Zapis pliku index.html w katalogu dla danych z raportu, oraz tworzenie tytułu po dacie z nazwy katalogu
     """
     with open(index_html_path, "w", encoding="utf-8") as f:
-        f.write(generate_index_html(create_title(report_dir_name), str(more_info)))
+        import json
+        f.write(generate_index_html(create_title(report_dir_name), json.dumps(more_info, ensure_ascii=False)))
 
     print(f"Plik index.html został zapisany w: {index_html_path}")
     print(f"Raport został pomyślnie wygenerowany w katalogu: '{report_dir_name}'")
