@@ -450,7 +450,7 @@ def move_device(device, direction):
     elif device == 'acc3':
         ch3_up() if direction == 'up' else ch3_down()
 
-def move_one_by_percent(device,percent):
+def move_one_by_percent(device,percent,save_pos = True):
     with device_positions[device].get_lock():
         current = device_positions[device].value
 
@@ -476,8 +476,9 @@ def move_one_by_percent(device,percent):
     time.sleep(duration)
     stop_device(device)
 
-    with device_positions[device].get_lock():
-        device_positions[device].value = percent
+    if save_pos:
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
 
 def move_two_by_percent(device1, device2, percent):
     durations = {}
@@ -551,6 +552,7 @@ def control_device():
     device = data['device']
     action = data['action']
     percent = data.get('percent')
+    save_pos = data.get('save_pos',True)
 
     try:
         if device not in device_positions and device not in ['vib', 'all']:
@@ -569,7 +571,7 @@ def control_device():
                 if percent is None or not (0 <= percent <= 100):
                     return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
 
-                move_one_by_percent(device,percent)
+                move_one_by_percent(device,percent,save_pos=save_pos)
 
                 return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
 
@@ -628,6 +630,17 @@ def upload_file():
         return jsonify({"success": True, "message": f"File saved as {file.filename}"}), 200
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/set_calibration", methods=["POST"])
+def set_calibration():
+    try:
+        data = request.get_json()
+        value = float(data["value"])
+        with open("back_calibration.txt", "w") as f:
+            f.write(str(value))
+        return jsonify({"status": "ok", "saved": value}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)
