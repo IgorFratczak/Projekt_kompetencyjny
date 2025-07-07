@@ -1,44 +1,147 @@
-from flask import Flask, Markup, render_template, request
-from urllib.request import urlopen
-import simplejson as json
-import sys
-import RPi.GPIO as GPIO
+from flask import Flask, render_template, request
+from flask import jsonify
+import threading
+from data_analysis_utils import generate_report
+
+try:
+    import RPi.GPIO as GPIO
+except (ImportError, RuntimeError):
+    class MockGPIO:
+        BCM = 'BCM'
+        OUT = 'OUT'
+        IN = 'IN'
+        LOW = 0
+        HIGH = 1
+        PUD_UP = 'PUD_UP'
+
+        def setmode(self, *args, **kwargs): pass
+        def setup(self, *args, **kwargs): pass
+        def output(self, *args, **kwargs): pass
+        def input(self, *args, **kwargs): return self.HIGH
+        def setwarnings(self, *args, **kwargs): pass
+    GPIO = MockGPIO()
 import time
 import socket
-import _thread as thread
 import multiprocessing
-
+from multiprocessing import Value
 
 app = Flask(__name__)
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
+import os
 
+# Ścieżka do pliku kalibracyjnego
+CALIBRATION_FILE = "calibration.txt"
+
+# Jeśli plik nie istnieje, twórz go z wartością 30.0
+if not os.path.exists(CALIBRATION_FILE):
+    with open(CALIBRATION_FILE, 'w') as f:
+        f.write("30.0")
+
+# Wczytaj wartość z pliku
+with open(CALIBRATION_FILE, 'r') as f:
+    try:
+        calibration_value = float(f.read().strip())
+    except ValueError:
+        calibration_value = 30.0  # fallback jeśli plik uszkodzony
+
+TimeToMaxDown = Value('d', calibration_value)
 #proc = multiprocessing.Process(target=channel1Thread(), args=())
 
 backProc = None
+#nazwy Gpio są złe np pin 26 to GPIO 26
 pins = {
-    26 : {'name' : 'GPIO 5', 'state' : GPIO.LOW},
-    19 : {'name' : 'GPIO 6', 'state' : GPIO.LOW},
-    8 : {'name' : 'GPIO 13', 'state' : GPIO.LOW},
-    20 : {'name' : 'GPIO 16', 'state' : GPIO.LOW},
-    1 : {'name' : 'GPIO 19', 'state' : GPIO.LOW},
-    21 : {'name' : 'GPIO 20', 'state' : GPIO.LOW},
-    17 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},
-    5 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},
-    13 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH},
-    9 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH},
-    0 : {'name' : 'GPIO 19', 'state' : GPIO.HIGH},
-    10 : {'name' : 'GPIO 20', 'state' : GPIO.HIGH},
-    30 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},
-    3 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},
-    23 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH},
-    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH}
+    26 : {'name' : 'GPIO 5', 'state' : GPIO.LOW}, #uzywany
+    19 : {'name' : 'GPIO 6', 'state' : GPIO.LOW},#uzywany
+    8 : {'name' : 'GPIO 13', 'state' : GPIO.LOW},#uzywany
+    20 : {'name' : 'GPIO 16', 'state' : GPIO.LOW},#uzywany
+    1 : {'name' : 'GPIO 19', 'state' : GPIO.LOW},#uzywany
+    21 : {'name' : 'GPIO 20', 'state' : GPIO.LOW},#uzywany
+    17 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},#uzywany
+    5 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},#uzywany
+    13 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH}, #uzywany
+    9 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH},#uzywany
+    0 : {'name' : 'GPIO 19', 'state' : GPIO.HIGH},#uzywany
+    10 : {'name' : 'GPIO 20', 'state' : GPIO.HIGH},#uzywany
+    30 : {'name' : 'GPIO 21', 'state' : GPIO.HIGH},#nie uzywany
+    3 : {'name' : 'GPIO 26', 'state' : GPIO.HIGH},#uzywany
+    23 : {'name' : 'GPIO 13', 'state' : GPIO.HIGH}, #nie używany
+    25 : {'name' : 'GPIO 16', 'state' : GPIO.HIGH}, #uzywant
 }
+buttons={
+    14: {'name': 'GPIO 14', 'state': GPIO.LOW},  # przycisk 1
+    15: {'name': 'GPIO 15', 'state': GPIO.LOW},  # przycisk 2
+    18: {'name': 'GPIO 18', 'state': GPIO.LOW}  # Przycisk 3
+}
+
+
+
+# Konfiguracja pinów jako wejścia z podciąganiem do VCC (pull-up)
+for pin in buttons:
+    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 for pin in pins:
    GPIO.setup(pin, GPIO.OUT)
    GPIO.output(pin, GPIO.HIGH)
 
+@app.route("/calibration")
+def calibration():
+    def calibration_logic():
+
+        # Krok 1: Schodzimy w dół, dopóki wszystkie przyciski nie są wciśnięte
+        print("Kalibracja: schodzę w dół...")
+        ch1_down()
+        ch2_down()
+        ch3_down()
+
+        while not all_buttons_pressed():
+            time.sleep(0.1)
+
+        # Zatrzymujemy wszystkie kanały
+        mode_1()
+        print("Wszystkie przyciski wciśnięte. Teraz jadę w górę przez 30s")
+
+        # Krok 2: W górę przez 30 sekund
+        ch1_up()
+        ch2_up()
+        ch3_up()
+        time.sleep(20)
+        mode_1()
+
+        # Krok 3: W dół i mierzymy czas aż znowu wciśnięte zostaną wszystkie przyciski
+        print("Rozpoczynam zjazd w dół i pomiar czasu")
+        ch1_down()
+        ch2_down()
+        ch3_down()
+
+        start_time = time.time()
+        while not all_buttons_pressed():
+            time.sleep(0.1)
+
+        end_time = time.time()
+        duration = end_time - start_time
+        print(f"Czas powrotu na dół: {duration:.2f} sekundy")
+        TimeToMaxDown.value = duration
+
+        # Zapis do pliku
+        with open(CALIBRATION_FILE, 'w') as f:
+            f.write(f"{duration:.2f}")
+        # Zatrzymanie aktuatorów
+        mode_1()
+
+    # Uruchamiamy jako proces równoległy by nie blokować serwera
+    global backProc
+    backProc = multiprocessing.Process(target=calibration_logic, daemon=True)
+    backProc.start()
+
+    return render_template('index.html'), 200
+
+
+@app.route('/TimeToMaxDown')
+def show_time_to_max_down():
+
+    print(f"Maksymalny czas:{TimeToMaxDown.value}")
+    return render_template('index.html'), 200
 
 @app.route('/')
 def hello_world():
@@ -313,11 +416,231 @@ def channel3Thread():
     pass
 
 
+def button1():
+    return GPIO.input(14) == GPIO.HIGH  # Przycisk naciśnięty gdy LOW
+
+def button2():
+    return GPIO.input(15) == GPIO.HIGH
+
+def button3():
+    return GPIO.input(18) == GPIO.HIGH
+
+def all_buttons_pressed():
+    return button1() and button2() and button3()
+
 def getNetworkIp():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     s.connect(('<broadcast>', 0))
     return s.getsockname()[0]
+
+def stop_device(device):
+    if device == 'acc1':
+        ch1_stop()
+    elif device == 'acc2':
+        ch2_stop()
+    elif device == 'acc3':
+        ch3_stop()
+
+def move_device(device, direction):
+    if device == 'acc1':
+        ch1_up() if direction == 'up' else ch1_down()
+    elif device == 'acc2':
+        ch2_up() if direction == 'up' else ch2_down()
+    elif device == 'acc3':
+        ch3_up() if direction == 'up' else ch3_down()
+
+def move_one_by_percent(device,percent,save_pos = True):
+    with device_positions[device].get_lock():
+        current = device_positions[device].value
+
+    if percent == current:
+        return
+
+    move_by_percent = percent - current
+    direction = 'up' if move_by_percent > 0 else 'down'
+
+    if device == 'acc1':
+        try:
+            with open("back_calibration.txt", "r") as f:
+                val = float(f.readline().strip())
+            duration = abs(move_by_percent) / 100 * val
+        except Exception:
+            print("Failed to load back calibration, using default")
+            duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
+    else:
+        duration = abs(move_by_percent) / 100 * TimeToMaxDown.value
+
+    stop_device(device)
+    move_device(device, direction)
+    time.sleep(duration)
+    stop_device(device)
+
+    if save_pos:
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
+
+def move_two_by_percent(device1, device2, percent):
+    durations = {}
+    directions = {}
+
+    print(f"Moving {device1} and {device2} to {percent}%")
+
+    for device in [device1, device2]:
+        with device_positions[device].get_lock():
+            current = device_positions[device].value
+            durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
+            directions[device] = 'up' if percent > current else 'down'
+
+    for device in [device1, device2]:
+        stop_device(device)
+        move_device(device, directions[device])
+
+    time.sleep(max(durations.values()))
+
+    for device in [device1, device2]:
+        stop_device(device)
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
+
+    print(f"{device1} and {device2} are now at {percent}%")
+
+def move_all_by_percent(percent):
+    durations = {}
+    directions = {}
+
+    print("Positions before move:")
+    for device in device_positions:
+        with device_positions[device].get_lock():
+            print(f"{device}: {device_positions[device].value}%")
+
+    for device in device_positions:
+        with device_positions[device].get_lock():
+            current = device_positions[device].value
+            durations[device] = abs(percent - current) / 100 * TimeToMaxDown.value
+            directions[device] = 'up' if percent > current else 'down'
+
+    for device in device_positions:
+        stop_device(device)
+        move_device(device, directions[device])
+
+    time.sleep(max(durations.values()))
+
+    for device in device_positions:
+        stop_device(device)
+        with device_positions[device].get_lock():
+            device_positions[device].value = percent
+
+    print("\nPositions after move:")
+    for device in device_positions:
+        with device_positions[device].get_lock():
+            print(f"{device}: {device_positions[device].value}%")
+
+device_positions = {
+    'acc1': Value('d', 0.0),
+    'acc2': Value('d', 0.0),
+    'acc3': Value('d', 0.0)
+}
+
+@app.route('/api/control', methods=['POST'])
+def control_device():
+    data = request.get_json()
+
+    if not data or 'device' not in data or 'action' not in data:
+        return jsonify({'status': 'error', 'message': 'Invalid JSON data'}), 400
+
+    device = data['device']
+    action = data['action']
+    percent = data.get('percent')
+    save_pos = data.get('save_pos',True)
+
+    try:
+        if device not in device_positions and device not in ['vib', 'all']:
+            return jsonify({'status': 'error', 'message': f'Unknown device: {device}'}), 400
+
+        if device in device_positions:
+            if action == 'up':
+                stop_device(device)
+                move_device(device, 'up')
+            elif action == 'down':
+                stop_device(device)
+                move_device(device, 'down')
+            elif action == 'stop':
+                stop_device(device)
+            elif action == 'percent':
+                if percent is None or not (0 <= percent <= 100):
+                    return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
+
+                move_one_by_percent(device,percent,save_pos=save_pos)
+
+                return jsonify({'status': 'ok', 'message': f'{device} moved to {percent}%'}), 200
+
+        elif device == 'vib':
+            if action == 'start':
+                vibRun()
+            elif action == 'stop':
+                vibTerm()
+
+        elif device == 'all':
+            if action == 'up':
+                multiprocessing.Process(target=allUp, daemon=True).start()
+            elif action == 'down':
+                multiprocessing.Process(target=allDown, daemon=True).start()
+            elif action == 'percent':
+                if percent is None or not (0 <= percent <= 100):
+                    return jsonify({'status': 'error', 'message': 'Invalid percent value'}), 400
+
+                move_all_by_percent(percent)
+                return jsonify({'status': 'ok', 'message': f'all moved to {percent}%'}), 200
+
+        return jsonify({'status': 'ok', 'message': f'{device} {action} executed'}), 200
+
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/control/two', methods=['POST'])
+def control_two_devices():
+    data = request.get_json()
+
+    device1 = data.get('device1')
+    device2 = data.get('device2')
+    percent = data.get('percent')
+
+    if not device1 or not device2 or percent is None or device1 not in device_positions or device2 not in device_positions:
+        return jsonify({'status': 'error', 'message': 'Invalid devices or percent'}), 400
+
+    move_two_by_percent(device1, device2, percent)
+    return jsonify({'status': 'ok', 'message': f'{device1} and {device2} moving to {percent}%'}), 200
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"success": False, "message": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "message": "No selected file"}), 400
+
+    filepath = os.path.join(os.getcwd(), file.filename)
+
+    try:
+        file.save(filepath)
+        print(f"Saved file: {filepath}")
+        threading.Thread(target=generate_report, args=(file.filename,)).start()
+        return jsonify({"success": True, "message": f"File saved as {file.filename}"}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@app.route("/set_calibration", methods=["POST"])
+def set_calibration():
+    try:
+        data = request.get_json()
+        value = float(data["value"])
+        with open("back_calibration.txt", "w") as f:
+            f.write(str(value))
+        return jsonify({"status": "ok", "saved": value}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 if __name__ == '__main__':
     app.run(host = getNetworkIp(), port=80)
